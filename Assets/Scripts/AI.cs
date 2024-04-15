@@ -1,26 +1,69 @@
 using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
+using UnityEngine.InputSystem;
+using System.Collections;
 
 public class AI : MonoBehaviour
 {
-    [SerializeField] private List<GameObject> _wayPoints;
+    [SerializeField] private List<Transform> _wayPoints;
     private NavMeshAgent _agent;
     private int _currentIndex = 0;
     private bool _reversedPath = false;
+    private enum AIState
+    {
+        Walk, 
+        Jump,
+        Attack
+    }
+
+    [SerializeField] private AIState _currentState;
+    private bool _isAttacking = false;
+    private bool _isJumping = false;
+    private MeshRenderer _renderer;
+    private Color _originalColor;
 
     private void Start()
     {
         _agent = GetComponent<NavMeshAgent>();
-        if(_agent == null)
+        if(_agent != null)
         {
-            Debug.LogError("Nav Mesh agent is null");
+            _agent.destination = _wayPoints[_currentIndex].position;
         }
+
+        _renderer = GetComponent<MeshRenderer>();
+        _originalColor = _renderer.material.color;
     }
 
     private void Update()
     {
-        CalculateAIMovement();
+        if (Keyboard.current.eKey.wasPressedThisFrame)
+        {
+            _currentState = AIState.Jump;
+        }
+
+        switch (_currentState)
+        {
+            case AIState.Walk:
+                CalculateAIMovement();
+                break;
+            case AIState.Jump:
+                Debug.Log("Jumping...");
+                if (!_isJumping)
+                {
+                    StartCoroutine(JumpRoutine());
+                    _isJumping = true;
+                }
+                break;
+            case AIState.Attack:
+                Debug.Log("Attacking...");
+                if (!_isAttacking)
+                {
+                    StartCoroutine(AttackRoutine());
+                    _isAttacking = true;
+                }
+                break;
+        }
     }
 
     void CalculateAIMovement()
@@ -35,8 +78,9 @@ public class AI : MonoBehaviour
             {
                 MoveReverse();
             }
+            _agent.SetDestination(_wayPoints[_currentIndex].position);
+            _currentState = AIState.Attack;
         }
-        _agent.SetDestination(_wayPoints[_currentIndex].transform.position);
     }
 
     void MoveForward()
@@ -63,5 +107,25 @@ public class AI : MonoBehaviour
         {
             _currentIndex--;
         }
+    }
+
+    IEnumerator AttackRoutine()
+    {
+        _agent.isStopped = true;
+        _renderer.material.color = Color.blue;
+        yield return new WaitForSeconds(2f);
+        _agent.isStopped = false;
+        _renderer.material.color = _originalColor;
+        _currentState = AIState.Walk;
+        _isAttacking = false;
+    }
+
+    IEnumerator JumpRoutine()
+    {
+        _agent.isStopped = true;
+        yield return new WaitForSeconds(1f);
+        _agent.isStopped = false;
+        _currentState = AIState.Walk;
+        _isJumping = false;
     }
 }
